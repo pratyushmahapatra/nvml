@@ -235,6 +235,7 @@ pmemobj_mutex_unlock(PMEMobjpool *pop, PMEMmutex *mutexp)
 	/* XXX potential performance improvement - move GET to debug version */
 	PMEMmutex_internal *mutexip = (PMEMmutex_internal *)mutexp;
 	pthread_mutex_t *mutex = GET_MUTEX(pop, mutexip);
+	PM_READ(pop); PM_READ(mutexip);
 	if (mutex == NULL)
 		return EINVAL;
 

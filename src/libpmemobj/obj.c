@@ -338,7 +338,7 @@ static void
 obj_norep_persist(PMEMobjpool *pop, const void *addr, size_t len)
 {
 	LOG(15, "pop %p addr %p len %zu", pop, addr, len);
-
+	PM_READ(pop);
 	pop->persist_local(addr, len);
 }
 
@@ -349,7 +349,7 @@ static void
 obj_norep_flush(PMEMobjpool *pop, const void *addr, size_t len)
 {
 	LOG(15, "pop %p addr %p len %zu", pop, addr, len);
-
+	PM_READ(pop);
 	pop->flush_local(addr, len);
 }
 
@@ -360,7 +360,7 @@ static void
 obj_norep_drain(PMEMobjpool *pop)
 {
 	LOG(15, "pop %p", pop);
-
+	PM_READ(pop);
 	pop->drain_local(); // Jumps to drain_empty@204
 }
 
@@ -374,6 +374,7 @@ obj_rep_memcpy_persist(PMEMobjpool *pop, void *dest, const void *src,
 	LOG(15, "pop %p dest %p src %p len %zu", pop, dest, src, len);
 
 	PMEMobjpool *rep = pop->replica;
+	PM_READ (pop->replica);
 	while (rep) {
 		void *rdest = (char *)rep + (uintptr_t)dest - (uintptr_t)pop;
 		rep->memcpy_persist_local(rdest, src, len);
@@ -391,6 +392,7 @@ obj_rep_memset_persist(PMEMobjpool *pop, void *dest, int c, size_t len)
 	LOG(15, "pop %p dest %p c 0x%02x len %zu", pop, dest, c, len);
 
 	PMEMobjpool *rep = pop->replica;
+	PM_READ (pop->replica);
 	while (rep) {
 		void *rdest = (char *)rep + (uintptr_t)dest - (uintptr_t)pop;
 		rep->memset_persist_local(rdest, c, len);
@@ -408,6 +410,7 @@ obj_rep_persist(PMEMobjpool *pop, const void *addr, size_t len)
 	LOG(15, "pop %p addr %p len %zu", pop, addr, len);
 
 	PMEMobjpool *rep = pop->replica;
+	PM_READ (pop->replica);
 	while (rep) {
 		void *raddr = (char *)rep + (uintptr_t)addr - (uintptr_t)pop;
 		rep->memcpy_persist_local(raddr, addr, len);
@@ -425,6 +428,7 @@ obj_rep_flush(PMEMobjpool *pop, const void *addr, size_t len)
 	LOG(15, "pop %p addr %p len %zu", pop, addr, len);
 
 	PMEMobjpool *rep = pop->replica;
+	PM_READ (pop->replica);
 	while (rep) {
 		void *raddr = (char *)rep + (uintptr_t)addr - (uintptr_t)pop;
 		memcpy(raddr, addr, len);
@@ -443,6 +447,7 @@ obj_rep_drain(PMEMobjpool *pop)
 	LOG(15, "pop %p", pop);
 
 	PMEMobjpool *rep = pop->replica;
+	PM_READ (pop->replica);
 	while (rep) {
 		rep->drain_local();
 		rep = rep->replica;
@@ -494,7 +499,9 @@ pmemobj_vg_check_no_undef(struct pmemobjpool *pop)
 
 	VALGRIND_DO_DISABLE_ERROR_REPORTING;
 	char *addr_start = pop->addr;
+	PM_READ (pop->addr);
 	char *addr_end = addr_start + pop->size;
+	PM_READ (pop->size);
 
 	while (addr_start < addr_end) {
 		char *noaccess = (char *)VALGRIND_CHECK_MEM_IS_ADDRESSABLE(
@@ -648,6 +655,7 @@ pmemobj_descr_create(PMEMobjpool *pop, const char *layout, size_t poolsize)
 	/* zero all lanes */
 	void *lanes_layout = (void *)((uintptr_t)pop +
 						pop->lanes_offset);
+	PM_READ (pop->lanes_offset);
 
 	PM_MEMSET((lanes_layout), (0),				\
 		(pop->nlanes * sizeof(struct lane_layout)));
@@ -700,6 +708,7 @@ pmemobj_descr_check(PMEMobjpool *pop, const char *layout, size_t poolsize)
 	}
 
 	if (pop->size < poolsize) {
+		PM_READ (pop->size);
 		ERR("replica size smaller than pool size: %zu < %zu",
 			pop->size, poolsize);
 		errno = EINVAL;
@@ -707,6 +716,8 @@ pmemobj_descr_check(PMEMobjpool *pop, const char *layout, size_t poolsize)
 	}
 
 	if (pop->heap_offset + pop->heap_size != poolsize) {
+		PM_READ (pop->heap_offset);
+		PM_READ (pop->heap_size);
 		ERR("heap size does not match pool size: %zu != %zu",
 			pop->heap_offset + pop->heap_size, poolsize);
 		errno = EINVAL;
@@ -715,6 +726,8 @@ pmemobj_descr_check(PMEMobjpool *pop, const char *layout, size_t poolsize)
 
 	if (pop->heap_offset % Pagesize ||
 	    pop->heap_size % Pagesize) {
+		PM_READ (pop->heap_offset);
+		PM_READ (pop->heap_size);
 		ERR("unaligned heap: off %ju, size %zu",
 			pop->heap_offset, pop->heap_size);
 		errno = EINVAL;
@@ -740,6 +753,7 @@ pmemobj_replica_init(PMEMobjpool *pop, int is_pmem)
 	PM_EQU((pop->is_pmem), (is_pmem));
 	PM_EQU((pop->replica), (NULL));
 
+	PM_READ (pop->is_pmem);
 	if (pop->is_pmem) {
 		PM_EQU((pop->persist_local), (pmem_persist));
 		PM_EQU((pop->flush_local), (pmem_flush));
@@ -772,6 +786,7 @@ pmemobj_runtime_init(PMEMobjpool *pop, int rdonly, int boot)
 {
 	LOG(3, "pop %p rdonly %d boot %d", pop, rdonly, boot);
 
+	PM_READ (pop->replica);
 	if (pop->replica != NULL) {
 		/* switch to functions that replicate data */
 		PM_EQU((pop->persist), (obj_rep_persist));
@@ -783,8 +798,10 @@ pmemobj_runtime_init(PMEMobjpool *pop, int rdonly, int boot)
 
 	/* run_id is made unique by incrementing the previous value */
 	PM_ADD_EQU((pop->run_id), (2));
-	if (pop->run_id == 0)
+	if (pop->run_id == 0) {
+		PM_READ (pop->run_id);
 		PM_ADD_EQU((pop->run_id), (2));
+	}
 	pop->persist(pop, &pop->run_id, sizeof(pop->run_id));
 
 	/*
@@ -936,6 +953,7 @@ pmemobj_check_basic(PMEMobjpool *pop)
 	int consistent = 1;
 
 	if (pop->run_id % 2) {
+		PM_READ (pop->run_id);
 		ERR("invalid run_id %ju", pop->run_id);
 		consistent = 0;
 	}
@@ -1044,12 +1062,15 @@ pmemobj_open_common(const char *path, const char *layout, int cow, int boot)
 		/* copy lanes */
 		pop = set->replica[0]->part[0].addr;
 		void *src = (void *)((uintptr_t)pop + pop->lanes_offset);
+		PM_READ (pop->lanes_offset);
 		size_t len = pop->nlanes * sizeof(struct lane_layout);
+		PM_READ (pop->nlanes);
 
 		for (unsigned r = 1; r < set->nreplicas; r++) {
 			pop = set->replica[r]->part[0].addr;
 			void *dst = (void *)((uintptr_t)pop +
 						pop->lanes_offset);
+			PM_READ (pop->lanes_offset);
 			pop->memcpy_persist_local(dst, src, len);
 		}
 	}
@@ -1123,6 +1144,7 @@ pmemobj_cleanup(PMEMobjpool *pop)
 	PMEMobjpool *rep;
 	do {
 		rep = pop->replica;
+		PM_READ (pop->replica);
 		VALGRIND_REMOVE_PMEM_MAPPING(pop->addr, pop->size);
 		util_unmap(pop->addr, pop->size);
 		pop = rep;
@@ -1187,8 +1209,10 @@ pmemobj_check(const char *path, const char *layout)
 	 * For replicated pools, basic consistency check is performed
 	 * in pmemobj_open_common().
 	 */
-	if (pop->replica == NULL)
+	if (pop->replica == NULL) {
+		PM_READ (pop->replica);
 		consistent = pmemobj_check_basic(pop);
+	}
 
 	if (consistent && (errno = pmemobj_boot(pop)) != 0) {
 		LOG(3, "!pmemobj_boot");
@@ -1202,6 +1226,7 @@ pmemobj_check(const char *path, const char *layout)
 		PMEMobjpool *rep;
 		do {
 			rep = pop->replica;
+			PM_READ (pop->replica);
 			VALGRIND_REMOVE_PMEM_MAPPING(pop->addr, pop->size);
 			util_unmap(pop->addr, pop->size);
 			pop = rep;
@@ -1463,6 +1488,7 @@ obj_realloc_common(PMEMobjpool *pop,
 
 	struct oob_header *pobj = OOB_HEADER_FROM_OID(pop, *oidp);
 	type_num_t user_type_old = pobj->type_num;
+	PM_READ (pobj->type_num);
 
 	struct carg_realloc carg;
 	carg.ptr = OBJ_OFF_TO_PTR(pop, oidp->off);
@@ -1804,6 +1830,7 @@ obj_realloc_root(PMEMobjpool *pop, size_t size,
 	struct carg_realloc carg;
 
 	carg.ptr = OBJ_OFF_TO_PTR(pop, pop->root_offset);
+	PM_READ (pop->root_offset);
 	carg.old_size = old_size;
 	carg.new_size = size;
 	carg.user_type = POBJ_ROOT_TYPE_NUM;
@@ -1824,8 +1851,10 @@ pmemobj_root_size(PMEMobjpool *pop)
 	LOG(3, "pop %p", pop);
 
 	if (pop->root_offset) {
+		PM_READ (pop->root_offset);
 		struct oob_header *ro =
 			OOB_HEADER_FROM_OFF(pop, pop->root_offset);
+		PM_READ (pop->root_offset);
 		return ro->size & ~OBJ_INTERNAL_OBJECT_MASK;
 	} else
 		return 0;
@@ -1851,8 +1880,11 @@ pmemobj_root_construct(PMEMobjpool *pop, size_t size,
 
 	pmemobj_mutex_lock_nofail(pop, &pop->rootlock);
 
-	if (pop->root_offset == 0)
+	if (pop->root_offset == 0) 
+	{
+		PM_READ (pop->root_offset);
 		obj_alloc_root(pop, size, constructor, arg);
+	}
 	else {
 		size_t old_size = pmemobj_root_size(pop);
 		if (size > old_size && obj_realloc_root(pop, size,
@@ -1863,7 +1895,9 @@ pmemobj_root_construct(PMEMobjpool *pop, size_t size,
 		}
 	}
 	root.pool_uuid_lo = pop->uuid_lo;
+	PM_READ (pop->uuid_lo);
 	root.off = pop->root_offset;
+	PM_READ (pop->root_offset);
 
 	pmemobj_mutex_unlock_nofail(pop, &pop->rootlock);
 	return root;
@@ -1894,6 +1928,7 @@ pmemobj_first(PMEMobjpool *pop)
 	if (off != 0) {
 		ret.off = off + OBJ_OOB_SIZE;
 		ret.pool_uuid_lo = pop->uuid_lo;
+		PM_READ (pop->uuid_lo);
 
 		struct oob_header *oobh = OOB_HEADER_FROM_OFF(pop, ret.off);
 		if (oobh->size & OBJ_INTERNAL_OBJECT_MASK) {
@@ -1925,6 +1960,7 @@ pmemobj_next(PMEMoid oid)
 	if (off != 0) {
 		ret.off = off + OBJ_OOB_SIZE;
 		ret.pool_uuid_lo = pop->uuid_lo;
+		PM_READ (pop->uuid_lo);
 
 		struct oob_header *oobh = OOB_HEADER_FROM_OFF(pop, ret.off);
 		if (oobh->size & OBJ_INTERNAL_OBJECT_MASK) {
@@ -1952,6 +1988,7 @@ pmemobj_list_insert(PMEMobjpool *pop, size_t pe_offset, void *head,
 	ASSERT(OBJ_OID_IS_VALID(pop, dest));
 
 	if (pe_offset >= pop->size) {
+		PM_READ (pop->size);
 		ERR("pe_offset (%lu) too big", pe_offset);
 		return EINVAL;
 	}
@@ -1983,6 +2020,7 @@ pmemobj_list_insert_new(PMEMobjpool *pop, size_t pe_offset, void *head,
 	}
 
 	if (pe_offset >= pop->size) {
+		PM_READ (pop->size);
 		ERR("pe_offset (%lu) too big", pe_offset);
 		errno = EINVAL;
 		return OID_NULL;
@@ -2017,6 +2055,7 @@ pmemobj_list_remove(PMEMobjpool *pop, size_t pe_offset, void *head,
 	ASSERT(OBJ_OID_IS_VALID(pop, oid));
 
 	if (pe_offset >= pop->size) {
+		PM_READ (pop->size);
 		ERR("pe_offset (%lu) too big", pe_offset);
 		return EINVAL;
 	}
@@ -2049,11 +2088,13 @@ pmemobj_list_move(PMEMobjpool *pop, size_t pe_old_offset, void *head_old,
 	ASSERT(OBJ_OID_IS_VALID(pop, dest));
 
 	if (pe_old_offset >= pop->size) {
+		PM_READ (pop->size);
 		ERR("pe_old_offset (%lu) too big", pe_old_offset);
 		return EINVAL;
 	}
 
 	if (pe_new_offset >= pop->size) {
+		PM_READ (pop->size);
 		ERR("pe_new_offset (%lu) too big", pe_new_offset);
 		return EINVAL;
 	}

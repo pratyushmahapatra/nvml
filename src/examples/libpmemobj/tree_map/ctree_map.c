@@ -156,16 +156,21 @@ ctree_map_insert_leaf(struct tree_map_entry *p,
 	TOID(struct tree_map_node) node;
 	while (OID_INSTANCEOF(p->slot, struct tree_map_node)) {
 		TOID_ASSIGN(node, p->slot);
+		PM_READ(p->slot);
 
 		/* the critical bits have to be sorted */
+		PM_READ(D_RO(node));
+		PM_READ(D_RO(new_node));
 		if (D_RO(node)->diff < D_RO(new_node)->diff)
 			break;
 
 		p = &D_RW(node)->entries[BIT_IS_SET(e.key, D_RO(node)->diff)];
+		PM_READ_P(D_RW(node));
 	}
 
 	/* insert the found destination in the other slot */
 	PM_EQU(D_RW(new_node)->entries[!d], *p);
+	PM_READ(D_RW(new_node));
 
 	pmemobj_tx_add_range_direct(p, sizeof(*p));
 	PM_EQU(p->key, 0);
@@ -209,8 +214,11 @@ ctree_map_insert(PMEMobjpool *pop, TOID(struct ctree_map) map,
 	TOID(struct tree_map_node) node;
 	while (!OID_IS_NULL(p->slot) &&
 		OID_INSTANCEOF(p->slot, struct tree_map_node)) {
+		PM_READ(p->slot);
 		TOID_ASSIGN(node, p->slot);
+		PM_READ(p->slot);
 		p = &D_RW(node)->entries[BIT_IS_SET(key, D_RW(node)->diff)];
+		PM_READ_P(D_RW(node));
 	}
 
 	struct tree_map_entry e = {key, value};
@@ -221,6 +229,7 @@ ctree_map_insert(PMEMobjpool *pop, TOID(struct ctree_map) map,
 		} else {
 			ctree_map_insert_leaf(&D_RW(map)->root, e,
 					find_crit_bit(p->key, key));
+			PM_READ_P(D_RW(map));
 		}
 	} TX_ONABORT {
 		ret = 1;

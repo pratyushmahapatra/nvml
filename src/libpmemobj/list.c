@@ -336,6 +336,7 @@ list_remove_single(PMEMobjpool *pop,
 	LOG(15, NULL);
 
 	if (args->entry_ptr->pe_next.off == args->obj_doffset) {
+		PM_READ (args->entry_ptr->pe_next.off);
 		/* only one element on list */
 		ASSERTeq(args->head->pe_first.off, args->obj_doffset);
 		ASSERTeq(args->entry_ptr->pe_prev.off, args->obj_doffset);
@@ -344,9 +345,11 @@ list_remove_single(PMEMobjpool *pop,
 	} else {
 		/* set next->prev = prev and prev->next = next */
 		uint64_t next_off = args->entry_ptr->pe_next.off;
+		PM_READ(args->entry_ptr->pe_next.off);
 		uint64_t next_prev_off = next_off + PREV_OFF;
 		u64_add_offset(&next_prev_off, args->pe_offset);
 		uint64_t prev_off = args->entry_ptr->pe_prev.off;
+		PM_READ(args->entry_ptr->pe_next.off);
 		uint64_t prev_next_off = prev_off + NEXT_OFF;
 		u64_add_offset(&prev_next_off, args->pe_offset);
 

@@ -288,6 +288,7 @@ flush_clflush(const void *addr, size_t len)
 	for (uptr = (uintptr_t)addr & ~(FLUSH_ALIGN - 1);
 		uptr < (uintptr_t)addr + len; uptr += FLUSH_ALIGN)
 	{
+		PM_READ(uptr);
 		_mm_clflush((char *)uptr);
 		PM_FLUSH((uptr), (64), (64));
 	}
@@ -329,6 +330,7 @@ flush_clflushopt(const void *addr, size_t len)
 	 */
 	for (uptr = (uintptr_t)addr & ~(FLUSH_ALIGN - 1);
 		uptr < (uintptr_t)addr + len; uptr += FLUSH_ALIGN) {
+		PM_READ(uptr);
 		_mm_clflushopt((char *)uptr);
 	}
 }

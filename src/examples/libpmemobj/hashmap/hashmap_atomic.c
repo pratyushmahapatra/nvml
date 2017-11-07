@@ -323,6 +323,7 @@ hm_atomic_remove(PMEMobjpool *pop, TOID(struct hashmap_atomic) hashmap,
 	}
 
 	D_RW(hashmap)->count--;
+	PM_READ (D_RW(hashmap)->count);
 	pmemobj_persist(pop, &D_RW(hashmap)->count,
 			sizeof(D_RW(hashmap)->count));
 

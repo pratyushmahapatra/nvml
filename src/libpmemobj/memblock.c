@@ -70,7 +70,7 @@ enum memory_block_type
 memblock_autodetect_type(struct memory_block *m, struct heap_layout *h)
 {
 	enum memory_block_type ret;
-
+	PM_READ(ZID_TO_ZONE(h, m->zone_id)->chunk_headers[m->chunk_id].type);
 	switch (ZID_TO_ZONE(h, m->zone_id)->chunk_headers[m->chunk_id].type) {
 		case CHUNK_TYPE_RUN:
 			ret = MEMORY_BLOCK_RUN;
@@ -107,6 +107,7 @@ run_block_size(struct memory_block *m, struct heap_layout *h)
 	struct zone *z = ZID_TO_ZONE(h, m->zone_id);
 	struct chunk_run *run = (struct chunk_run *)&z->chunks[m->chunk_id];
 
+	PM_READ(run->block_size);
 	return run->block_size;
 }
 

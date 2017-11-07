@@ -217,6 +217,7 @@ lane_boot(PMEMobjpool *pop)
 
 	PM_EQU((pop->lanes_desc.lane), (Malloc(sizeof(struct lane) * pop->nlanes)));
 	if (pop->lanes_desc.lane == NULL) {
+		PM_READ(pop->lanes_desc.lane);
 		err = ENOMEM;
 		ERR("!Malloc of volatile lanes");
 		goto error_lanes_malloc;
@@ -227,6 +228,7 @@ lane_boot(PMEMobjpool *pop)
 	PM_EQU((pop->lanes_desc.lane_locks),	\
 		(Zalloc(sizeof(*pop->lanes_desc.lane_locks) * pop->nlanes)));
 	if (pop->lanes_desc.lane_locks == NULL) {
+		PM_READ (pop->lanes_desc.lane_locks);
 		ERR("!Malloc for lane locks");
 		goto error_locks_malloc;
 	}
@@ -366,6 +368,7 @@ get_lane(uint64_t *locks, uint64_t *index, uint64_t nlocks)
 static inline struct lane_info *
 get_lane_info_record(PMEMobjpool *pop)
 {
+	PM_READ(pop->uuid_lo);
 	if (likely(Lane_info_cache != NULL &&
 			Lane_info_cache->pop_uuid_lo == pop->uuid_lo)) {
 		return Lane_info_cache;
@@ -413,17 +416,21 @@ lane_hold(PMEMobjpool *pop, struct lane_section **section,
 
 	struct lane_info *lane = get_lane_info_record(pop);
 	while (unlikely(lane->lane_idx == UINT64_MAX)) {
+		PM_READ (lane->lane_idx);
 		/* initial wrap to next CL */
 		PM_EQU((lane->lane_idx), (__sync_fetch_and_add(		\
 			&pop->lanes_desc.next_lane_idx, LANE_JUMP)));
+		PM_READ_P(pop->lanes_desc.next_lane_idx);
 	} /* handles wraparound */
 
 	uint64_t *llocks = pop->lanes_desc.lane_locks;
+	PM_READ (pop->lanes_desc.lane_locks);
 	/* grab next free lane */
 	if (!lane->nest_count++)
 		get_lane(llocks, &lane->lane_idx, pop->nlanes);
 
 	*section = &pop->lanes_desc.lane[lane->lane_idx].sections[type];
+	PM_READ_P(pop->lanes_desc.lane[lane->lane_idx].sections[type]);
 }
 
 /*
@@ -441,6 +448,7 @@ lane_release(PMEMobjpool *pop)
 	if (unlikely(lane->nest_count == 0)) {
 		FATAL("lane_release");
 	} else if (--(lane->nest_count) == 0) {
+		PM_READ_P(pop->lanes_desc.lane_locks[lane->lane_idx]);
 		if (unlikely(!__sync_bool_compare_and_swap(
 				&pop->lanes_desc.lane_locks[lane->lane_idx],
 				1, 0))) {

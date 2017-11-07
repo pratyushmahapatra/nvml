@@ -28,13 +28,13 @@ then
     dir=/dev/shm/ctree-testfile
 	if [ "$action" == "--small" ]
 	then
-        $bin -f $dir -d 128 -n 102400 -t 1 -r 1 -T ctree   
+        ../../../pin/pin -t ../../../pin/source/tools/SimpleExamples/obj-intel64/pinatrace.so -- $bin -f $dir -d 128 -n 102400 -t 1 -r 1 -T ctree   
 	elif [ "$action" == "--med" ]
 	then
         $bin -f $dir -d 128 -n 1024000 -t 2 -r 1 -T ctree   
 	elif [ "$action" == "--large" ]
 	then
-        $bin -f $dir -d 128 -n 1024000 -t 4 -r 4 -T ctree   
+        ../../../pin/pin -t ../../../pin/source/tools/SimpleExamples/obj-intel64/pinatrace.so -- $bin -f $dir -d 128 -n 1024000 -t 4 -r 4 -T ctree   
 	fi
 
 elif [ "$var" == "--hashmap" ]
@@ -42,7 +42,7 @@ then
     dir=/dev/shm/hashmap-testfile
 	if [ "$action" == "--small" ]
 	then
-        $bin -f $dir -d 128 -n 102400 -t 1 -r 1 -T hashmap_tx
+        ../../../pin/pin -t ../../../pin/source/tools/SimpleExamples/obj-intel64/pinatrace.so -- $bin -f $dir -d 128 -n 102400 -t 1 -r 1 -T hashmap_tx
 	elif [ "$action" == "--med" ]
 	then
         $bin -f $dir -d 128 -n 1024000 -t 2 -r 1 -T hashmap_tx

@@ -261,6 +261,7 @@ pvector_pop_back(struct pvector_context *ctx, entry_op_callback cb)
 
 	uint64_t *arrp = OBJ_OFF_TO_PTR(ctx->pop, ctx->vec->arrays[s.idx]);
 	uint64_t ret = arrp[s.pos];
+	PM_READ(arrp[s.pos]);
 
 	if (cb)
 		cb(ctx->pop, &arrp[s.pos]);

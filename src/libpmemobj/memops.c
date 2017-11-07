@@ -109,6 +109,7 @@ void operation_add_typed_entry(struct operation_context *ctx,
 	if (type == OPERATION_AND || type == OPERATION_OR) {
 		/* change the new entry to current value and apply logic op */
 		en.value = *(uint64_t *)ptr;
+		PM_READ(ptr);
 		operation_perform(&en.value, value, type);
 	}
 	/* freud : this is a volatile log. wtf! */

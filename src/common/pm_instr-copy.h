@@ -303,7 +303,6 @@ extern unsigned long long glb_tv_sec, glb_tv_usec, glb_start_time;
                         sizeof((pm_src)),           	\
                         LOC1,                   	\
                         LOC2);                  	\
-            (pm_src);                               	\
     })     
 
 /* Return the address of persistent variable */
@@ -316,7 +315,6 @@ extern unsigned long long glb_tv_sec, glb_tv_usec, glb_start_time;
                         sizeof((pm_src)),           	\
                         LOC1,                   	\
                         LOC2);                  	\
-            &(pm_src);                              	\
     })    
 
 /* Return the address of persistent variable */

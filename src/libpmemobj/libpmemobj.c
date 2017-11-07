@@ -89,7 +89,7 @@ trace_buf_init()
 
         /* Pick a routine that EXISTS but will never be called, VVV IMP !*/
         debug_fd = open("/sys/kernel/debug/tracing/set_ftrace_filter", O_WRONLY);
-        if(debug_fd != -1){ ret = write(debug_fd, "pmfs_mount", 10); }
+        if(debug_fd != -1){ ret = write(debug_fd, "rootfs_mount", 12); }
         else{ ret = -3; goto fail; }
         close(debug_fd);
 

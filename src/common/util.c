@@ -275,7 +275,6 @@ util_checksum(void *addr, size_t len, uint64_t *csump, int insert)
 		PM_EQU((*csump), (htole64(csum)));
 		return 1;
 	}
-
 	return *csump == htole64(csum);
 }
 

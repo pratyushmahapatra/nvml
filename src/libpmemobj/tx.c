@@ -309,6 +309,7 @@ tx_set_state(PMEMobjpool *pop, struct lane_tx_layout *layout, uint64_t state)
 {
 	PM_EQU((layout->state), (state));
 	pop->persist(pop, &layout->state, sizeof(layout->state));
+	PM_READ(layout->state);
 }
 
 /*
@@ -506,7 +507,9 @@ tx_restore_range(PMEMobjpool *pop, struct tx_range *range)
 	}
 
 	txr->begin = OBJ_OFF_TO_PTR(pop, range->offset);
+	PM_READ (range->offset);
 	txr->end = (char *)txr->begin + range->size;
+	PM_READ (range->size);
 	SLIST_INSERT_HEAD(&tx_ranges, txr, tx_range);
 
 	struct tx_lock_data *txl;
@@ -523,6 +526,7 @@ tx_restore_range(PMEMobjpool *pop, struct tx_range *range)
 	ASSERT(!SLIST_EMPTY(&tx_ranges));
 
 	void *dst_ptr = OBJ_OFF_TO_PTR(pop, range->offset);
+	PM_READ (range->offset);
 
 	while (!SLIST_EMPTY(&tx_ranges)) {
 		txr = SLIST_FIRST(&tx_ranges);
@@ -562,8 +566,11 @@ tx_foreach_set(PMEMobjpool *pop, struct tx_undo_runtime *tx_rt,
 
 		for (int i = 0; i < MAX_CACHED_RANGES; ++i) {
 			range = (struct tx_range *)&cache->range[i];
-			if (range->offset == 0 || range->size == 0)
+			if (range->offset == 0 || range->size == 0) {
+				PM_READ (range->size);
+				PM_READ (range->offset);
 				break;
+			}
 
 			cb(pop, range);
 		}
@@ -588,6 +595,7 @@ static void
 tx_abort_recover_range(PMEMobjpool *pop, struct tx_range *range)
 {
 	void *ptr = OBJ_OFF_TO_PTR(pop, range->offset);
+	PM_READ (range->offset);
 	pop->memcpy_persist(pop, ptr, range->data, range->size);
 }
 
@@ -633,6 +641,7 @@ tx_pre_commit_alloc(PMEMobjpool *pop, struct tx_undo_runtime *tx_rt)
 
 		size_t size = pmalloc_usable_size(pop, offset);
 		pop->flush(pop, oobh, size);
+		PM_READ(pop);
 
 		/*
 		 * The first few bytes of the oobh are unused and double as
@@ -651,6 +660,7 @@ static void
 tx_pre_commit_range_persist(PMEMobjpool *pop, struct tx_range *range)
 {
 	void *ptr = OBJ_OFF_TO_PTR(pop, range->offset);
+	PM_READ (range->offset);
 	pop->flush(pop, ptr, range->size);
 }
 
@@ -1315,6 +1325,7 @@ pmemobj_tx_commit()
 		tx_pre_commit(pop, &lane->undo);
 
 		pop->drain(pop);
+		PM_READ(pop);
 
 		/* set transaction state as committed */
 		tx_set_state(pop, layout, TX_STATE_COMMITTED);
@@ -1362,8 +1373,10 @@ pmemobj_tx_end()
 
 		/* the transaction state and undo log should be clear */
 		ASSERTeq(layout->state, TX_STATE_NONE);
-		if (layout->state != TX_STATE_NONE)
+		PM_READ(layout->state);
+		if (layout->state != TX_STATE_NONE) {
 			LOG(2, "invalid transaction state");
+		}
 
 		ASSERTeq(pvector_nvalues(lane->undo.ctx[UNDO_ALLOC]), 0);
 		ASSERTeq(pvector_nvalues(lane->undo.ctx[UNDO_SET]), 0);
@@ -1500,6 +1513,7 @@ pmemobj_tx_get_range_cache(PMEMobjpool *pop, struct pvector_context *undo)
 		}
 
 		cache = OBJ_OFF_TO_PTR(pop, *entry);
+		PM_READ (*entry);
 
 		/* since the cache is new, we start the count from 0 */
 		struct lane_tx_runtime *runtime = tx.section->runtime;
@@ -1826,7 +1840,7 @@ pmemobj_tx_free(PMEMoid oid)
 		return pmemobj_tx_abort_err(EINVAL);
 	}
 	ASSERT(OBJ_OID_IS_VALID(lane->pop, oid));
-
+	PM_READ(oid);
 	if (!OBJ_OID_IS_IN_UNDO_LOG(lane->pop, oid)) {
 		/* the object is in object store */
 		uint64_t *entry = pvector_push_back(lane->undo.ctx[UNDO_FREE]);
@@ -1856,6 +1870,7 @@ pmemobj_tx_free(PMEMoid oid)
 		 * during processing.
 		 */
 		uint64_t *entry_offset = (uint64_t *)oobh->undo_entry_offset;
+		PM_READ (oobh->undo_entry_offset);
 		struct operation_entry e = {entry_offset,
 			TX_SKIP_ENTRY_VALUE, OPERATION_SET};
 		palloc_operation(lane->pop, *entry_offset,
@@ -1907,6 +1922,7 @@ lane_transaction_recovery(PMEMobjpool *pop,
 	int ret = 0;
 
 	if (layout->state == TX_STATE_COMMITTED) {
+		PM_READ(layout->state);
 		/*
 		 * The transaction has been committed so we have to
 		 * process the undo log, do the post commit phase

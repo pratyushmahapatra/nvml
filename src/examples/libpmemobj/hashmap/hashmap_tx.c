@@ -112,9 +112,13 @@ hash(const TOID(struct hashmap_tx) *hashmap,
 	const TOID(struct buckets) *buckets, uint64_t value)
 {
 	uint32_t a = D_RO(*hashmap)->hash_fun_a;
+	PM_READ(D_RO(*hashmap)->hash_fun_a);
 	uint32_t b = D_RO(*hashmap)->hash_fun_b;
+	PM_READ(D_RO(*hashmap)->hash_fun_b);
 	uint64_t p = D_RO(*hashmap)->hash_fun_p;
+	PM_READ(D_RO(*hashmap)->hash_fun_p);
 	size_t len = D_RO(*buckets)->nbuckets;
+	PM_READ(D_RO(*buckets)->nbuckets);
 
 	return ((a * value + b) % p) % len;
 }
@@ -145,8 +149,10 @@ hm_tx_rebuild(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap, size_t new_len)
 
 		for (size_t i = 0; i < D_RO(buckets_old)->nbuckets; ++i) {
 			while (!TOID_IS_NULL(D_RO(buckets_old)->bucket[i])) {
+				PM_READ(D_RO(buckets_old)->bucket[i]);
 				TOID(struct entry) en =
 					D_RO(buckets_old)->bucket[i];
+				PM_READ(D_RO(buckets_old)->bucket[i]);
 				uint64_t h = hash(&hashmap, &buckets_new,
 						D_RO(en)->key);
 
@@ -154,6 +160,7 @@ hm_tx_rebuild(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap, size_t new_len)
 
 				TX_ADD_FIELD(en, next);
 				PM_EQU((D_RW(en)->next), (D_RO(buckets_new)->bucket[h]));
+				PM_READ(D_RO(buckets_new)->bucket[h]);
 				PM_EQU((D_RW(buckets_new)->bucket[h]), (en));
 			}
 		}
@@ -187,10 +194,12 @@ hm_tx_insert(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap,
 
 	uint64_t h = hash(&hashmap, &buckets, key);
 	int num = 0;
-
+	
+	PM_READ(D_RO(buckets)->bucket[h]);
 	for (var = D_RO(buckets)->bucket[h];
 			!TOID_IS_NULL(var);
 			var = D_RO(var)->next) {
+		PM_READ(D_RO(var)->key);
 		if (D_RO(var)->key == key)
 			return 1;
 		num++;
@@ -199,15 +208,18 @@ hm_tx_insert(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap,
 	int ret = 0;
 	TX_BEGIN(pop) {
 		TX_ADD_FIELD(D_RO(hashmap)->buckets, bucket[h]);
+		PM_READ(D_RO(hashmap)->buckets);
 		TX_ADD_FIELD(hashmap, count);
 
 		TOID(struct entry) e = TX_NEW(struct entry);
 		PM_EQU((D_RW(e)->key), (key));
 		PM_EQU((D_RW(e)->value), (value));
 		PM_EQU((D_RW(e)->next), (D_RO(buckets)->bucket[h]));
+		PM_READ(D_RO(buckets)->bucket[h]);
 		PM_EQU((D_RW(buckets)->bucket[h]), (e));
 
 		PM_EQU((D_RW(hashmap)->count), (D_RW(hashmap)->count+1));
+		PM_READ(D_RW(hashmap->count));
 		num++;
 	} TX_ONABORT {
 		fprintf(stderr, "transaction aborted: %s\n",
@@ -261,6 +273,7 @@ hm_tx_remove(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap, uint64_t key)
 		else
 			D_RW(prev)->next = D_RO(var)->next;
 		D_RW(hashmap)->count--;
+		PM_READ (D_RW(hashmap)->count);
 		TX_FREE(var);
 	} TX_ONABORT {
 		fprintf(stderr, "transaction aborted: %s\n",

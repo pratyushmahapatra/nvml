@@ -101,7 +101,7 @@ get_mblock_from_alloc(PMEMobjpool *pop, struct allocation_header *alloc)
 		0,
 		0
 	};
-
+	PM_READ(alloc->chunk_id); PM_READ(alloc->zone_id);
 	uint64_t unit_size = MEMBLOCK_OPS(AUTO, &m)->block_size(&m,
 		pop->hlayout);
 	m.block_off = MEMBLOCK_OPS(AUTO, &m)->block_offset(&m, pop, alloc);
@@ -315,8 +315,10 @@ palloc_operation(PMEMobjpool *pop,
 	/* if allocation or reallocation, reserve new memory */
 	if (size != 0) {
 		/* reallocation to exactly the same size, which is a no-op */
-		if (alloc != NULL && alloc->size == sizeh)
+		if (alloc != NULL && alloc->size == sizeh) {
+			PM_READ (alloc->size);
 			goto out;
+		}
 
 		if ((errno = alloc_reserve_block(pop,
 			&new_block, sizeh)) != 0) {
@@ -440,6 +442,7 @@ palloc_operation(PMEMobjpool *pop,
 	if (!MEMORY_BLOCK_IS_EMPTY(existing_block) &&
 		!MEMORY_BLOCK_IS_EMPTY(new_block)) {
 		size_t old_size = alloc->size;
+		PM_READ (alloc->size);
 		size_t to_cpy = old_size > sizeh ? sizeh : old_size;
 		pop->memcpy_persist(pop,
 			OBJ_OFF_TO_PTR(pop, offset_value),
@@ -468,6 +471,7 @@ palloc_operation(PMEMobjpool *pop,
 	if (!MEMORY_BLOCK_IS_EMPTY(new_block)) {
 		/* new block run lock */
 		MEMBLOCK_OPS(AUTO, &new_block)->unlock(&new_block, pop);
+		PM_READ(pop);
 	}
 
 	if (!MEMORY_BLOCK_IS_EMPTY(existing_block)) {
@@ -580,6 +584,7 @@ prealloc_construct(PMEMobjpool *pop, uint64_t *off, size_t size,
 size_t
 pmalloc_usable_size(PMEMobjpool *pop, uint64_t off)
 {
+	PM_READ(pop);
 	return USABLE_SIZE(ALLOC_GET_HEADER(pop, off));
 }
 
@@ -594,6 +599,7 @@ void
 pfree(PMEMobjpool *pop, uint64_t *off)
 {
 	int ret = palloc_operation(pop, *off, off, 0, NULL, NULL, NULL, 0);
+	PM_READ(pop);
 	ASSERTeq(ret, 0);
 }
 

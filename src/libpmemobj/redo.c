@@ -145,9 +145,12 @@ redo_log_process(PMEMobjpool *pop, struct redo_log *redo,
 
 	uint64_t *val;
 	while ((redo->offset & REDO_FINISH_FLAG) == 0) {
+		PM_READ (redo->offset);
 		val = (uint64_t *)((uintptr_t)pop->addr + redo->offset);
+		PM_READ (redo->offset);
 		VALGRIND_ADD_TO_TX(val, sizeof(*val));
 		PM_EQU((*val), (redo->value));
+		PM_READ (redo->value);
 		VALGRIND_REMOVE_FROM_TX(val, sizeof(*val));
 
 		pop->flush(pop, val, sizeof(uint64_t));
@@ -156,9 +159,11 @@ redo_log_process(PMEMobjpool *pop, struct redo_log *redo,
 	}
 
 	uint64_t offset = redo->offset & REDO_FLAG_MASK;
+	PM_READ (redo->offset);
 	val = (uint64_t *)((uintptr_t)pop->addr + offset);
 	VALGRIND_ADD_TO_TX(val, sizeof(*val));
 	PM_EQU((*val), (redo->value));
+	PM_READ (redo->value);
 	VALGRIND_REMOVE_FROM_TX(val, sizeof(*val));
 
 	pop->persist(pop, val, sizeof(uint64_t));
@@ -203,6 +208,7 @@ redo_log_check(PMEMobjpool *pop, struct redo_log *redo, size_t nentries)
 
 	if (nflags == 1) {
 		while ((redo->offset & REDO_FINISH_FLAG) == 0) {
+			PM_READ (redo->offset);
 			if (!redo_log_check_offset(pop, redo->offset)) {
 				LOG(15, "redo %p invalid offset %ju",
 						redo, redo->offset);
@@ -212,6 +218,7 @@ redo_log_check(PMEMobjpool *pop, struct redo_log *redo, size_t nentries)
 		}
 
 		uint64_t offset = redo->offset & REDO_FLAG_MASK;
+		PM_READ (redo->offset);
 		if (!redo_log_check_offset(pop, offset)) {
 			LOG(15, "redo %p invalid offset %ju", redo, offset);
 			return -1;
